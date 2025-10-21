@@ -5,10 +5,7 @@ import type { Context } from 'hono'
 import { logError, logInfo, logSuccess, logWarning } from './utils.ts'
 import { PluginAuthPage } from './components/PluginAuthPage.tsx'
 import { AuthSuccessPage } from './components/AuthSuccessPage.tsx'
-import {env, validateEnv} from "./env.ts";
-
-validateEnv()
-logInfo('环境变量验证通过')
+import {env} from "./env.ts";
 
 const app = new Hono()
 
