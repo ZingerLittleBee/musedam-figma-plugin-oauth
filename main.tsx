@@ -33,23 +33,6 @@ app.use(logger())
 
 logInfo('Hono 日志中间件已启用')
 
-// 创建 /universal 路径转发中间件
-app.use('/muse-figma-oauth/universal/*', async (c, _) => {
-	// 获取去除 /universal 前缀后的路径
-	const targetPath = c.req.path.replace('/muse-figma-oauth/universal', '') ||
-		'/'
-
-	// 转发到对应路径
-	const newUrl = new URL(
-		targetPath +
-			(c.req.url.includes('?') ? '?' + c.req.url.split('?')[1] : ''),
-		new URL(c.req.url).origin,
-	)
-	return await app.fetch(new Request(newUrl.toString(), c.req.raw))
-})
-
-logInfo('universal 路径转发中间件已配置')
-
 // 存储状态和代码的映射
 const state2code = new Map()
 // 存储状态和解析器的映射
@@ -63,9 +46,9 @@ logInfo('OAuth 状态存储已初始化', {
 	state2lng: 'Map for storing state-to-language mappings',
 })
 
-app.get('/', (c) => {
+app.get('/', (c: Context) => {
 	const response = {
-		message: 'Hello from Figma OAuth Service!',
+		message: 'Hello from MuseDAM for Figma OAuth Service!',
 		time: new Date().toISOString(),
 	}
 	return c.json(response)
