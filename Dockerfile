@@ -1,5 +1,4 @@
-# 使用官方 Deno 镜像作为基础镜像
-FROM denoland/deno:2.1.4
+FROM denoland/deno:latest
 
 # 设置工作目录
 WORKDIR /app
