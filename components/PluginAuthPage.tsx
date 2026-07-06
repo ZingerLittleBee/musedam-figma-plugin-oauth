@@ -1,16 +1,36 @@
 import type { FC } from 'hono/jsx'
-import {env} from "../env.ts";
+import { env } from '../env.ts'
 
 interface PluginAuthPageProps {
 	state?: string
 }
 
+// Serialize a value into a JS string literal that is also safe to embed inside
+// an inline <script>. JSON.stringify handles quote/backslash escaping; the extra
+// replacements neutralize sequences that could break out of the script element
+// or terminate a JS string via the U+2028/U+2029 line separators.
+function toScriptLiteral(value: string): string {
+	return JSON.stringify(value)
+		.replace(/</g, '\\u003c')
+		.replace(/>/g, '\\u003e')
+		.replace(/&/g, '\\u0026')
+		.replace(/\u2028/g, '\\u2028')
+		.replace(/\u2029/g, '\\u2029')
+}
+
 export const PluginAuthPage: FC<PluginAuthPageProps> = ({ state }) => {
+	const stateLiteral = toScriptLiteral(state ?? '')
+	const callbackLiteral = toScriptLiteral(env.CALLBACK_URL)
+	const authUrlLiteral = toScriptLiteral(env.MUSEDAM_AUTH_URL)
 	return (
 		<html>
 			<head>
 				<title>MuseDAM Figma Plugin Oauth</title>
-				<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTAgMTZDMCA4LjQ1NzUzIDAgNC42ODYyOSAyLjM0MzE1IDIuMzQzMTVDNC42ODYyOSAwIDguNDU3NTMgMCAxNiAwQzIzLjU0MjUgMCAyNy4zMTM3IDAgMjkuNjU2OSAyLjM0MzE1QzMyIDQuNjg2MjkgMzIgOC40NTc1MyAzMiAxNkMzMiAyMy41NDI1IDMyIDI3LjMxMzcgMjkuNjU2OSAyOS42NTY5QzI3LjMxMzcgMzIgMjMuNTQyNSAzMiAxNiAzMkM4LjQ1NzUzIDMyIDQuNjg2MjkgMzIgMi4zNDMxNSAyOS42NTY5QzAgMjcuMzEzNyAwIDIzLjU0MjUgMCAxNloiIGZpbGw9IiMzMzY2RkYiLz4KPHBhdGggZmlsbC1ydWxlPSJldmVub2RkIiBjbGlwLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik0xOC41MzMzIDIxLjk2NzRDMTguNTMzMyAyMi43MDk0IDE5LjQ5NTggMjMuMDAwOCAxOS45MDc0IDIyLjM4MzRMMjQuNTExNSAxNS40NzcxQzI0Ljg0MzggMTQuOTc4NyAyNC40ODY1IDE0LjMxMTEgMjMuODg3NSAxNC4zMTExSDIwLjIyMjJWMTAuMDMyNkMyMC4yMjIyIDkuMjkwNTggMTkuMjU5OCA4Ljk5OTE4IDE4Ljg0ODIgOS42MTY2MUwxNC4yNDQgMTYuNTIyOUMxMy45MTE3IDE3LjAyMTMgMTQuMjY5IDE3LjY4ODkgMTQuODY4MSAxNy42ODg5SDE4LjUzMzNWMjEuOTY3NFoiIGZpbGw9IndoaXRlIi8+CjxnIG9wYWNpdHk9IjAuMyI+CjxwYXRoIGQ9Ik04LjQgMTEuMzU1NUM4LjQgMTAuNjU2IDguOTY3MTEgMTAuMDg4OSA5LjY2NjY3IDEwLjA4ODlIMTMuODg4OUMxNC41ODg1IDEwLjA4ODkgMTUuMTU1NiAxMC42NTYgMTUuMTU1NiAxMS4zNTU1QzE1LjE1NTYgMTIuMDU1MSAxNC41ODg1IDEyLjYyMjIgMTMuODg4OSAxMi42MjIySDkuNjY2NjdDOC45NjcxMSAxMi42MjIyIDguNCAxMi4wNTUxIDguNCAxMS4zNTU1WiIgZmlsbD0id2hpdGUiLz4KPHBhdGggZD0iTTguNCAyMS40ODg5QzguNCAyMC43ODkzIDguOTY3MTEgMjAuMjIyMiA5LjY2NjY3IDIwLjIyMjJIMTMuODg4OUMxNC41ODg1IDIwLjIyMjIgMTUuMTU1NiAyMC43ODkzIDE1LjE1NTYgMjEuNDg4OUMxNS4xNTU2IDIyLjE4ODQgMTQuNTg4NSAyMi43NTU1IDEzLjg4ODkgMjIuNzU1NUg5LjY2NjY3QzguOTY3MTEgMjIuNzU1NSA4LjQgMjIuMTg4NCA4LjQgMjEuNDg4OVoiIGZpbGw9IndoaXRlIi8+CjxwYXRoIGQ9Ik03Ljk3Nzc4IDE1LjE1NTZDNC4yNzgyMiAxNS4xNTU2IDYuNzExMTEgMTUuNzIyNyA2LjcxMTExIDE2LjQyMjJDNi43MTExMSAxNy4xMjE4IDcuMjc4MjIgMTcuNjg4OSA3Ljk3Nzc4IDE3LjY4ODlIMTEuMzU1NkMxMi4wNTUxIDE3LjY4ODkgMTIuNjIyMiAxNy4xMjE4IDEyLjYyMjIgMTYuNDIyMkMxMi42MjIyIDE1LjcyMjcgMTIuMDU1MSAxNS4xNTU2IDExLjM1NTYgMTUuMTU1Nkg3Ljk3Nzc4WiIgZmlsbD0id2hpdGUiLz4KPC9nPgo8L3N2Zz4K" />
+				<link
+					rel='icon'
+					type='image/svg+xml'
+					href='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTAgMTZDMCA4LjQ1NzUzIDAgNC42ODYyOSAyLjM0MzE1IDIuMzQzMTVDNC42ODYyOSAwIDguNDU3NTMgMCAxNiAwQzIzLjU0MjUgMCAyNy4zMTM3IDAgMjkuNjU2OSAyLjM0MzE1QzMyIDQuNjg2MjkgMzIgOC40NTc1MyAzMiAxNkMzMiAyMy41NDI1IDMyIDI3LjMxMzcgMjkuNjU2OSAyOS42NTY5QzI3LjMxMzcgMzIgMjMuNTQyNSAzMiAxNiAzMkM4LjQ1NzUzIDMyIDQuNjg2MjkgMzIgMi4zNDMxNSAyOS42NTY5QzAgMjcuMzEzNyAwIDIzLjU0MjUgMCAxNloiIGZpbGw9IiMzMzY2RkYiLz4KPHBhdGggZmlsbC1ydWxlPSJldmVub2RkIiBjbGlwLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik0xOC41MzMzIDIxLjk2NzRDMTguNTMzMyAyMi43MDk0IDE5LjQ5NTggMjMuMDAwOCAxOS45MDc0IDIyLjM4MzRMMjQuNTExNSAxNS40NzcxQzI0Ljg0MzggMTQuOTc4NyAyNC40ODY1IDE0LjMxMTEgMjMuODg3NSAxNC4zMTExSDIwLjIyMjJWMTAuMDMyNkMyMC4yMjIyIDkuMjkwNTggMTkuMjU5OCA4Ljk5OTE4IDE4Ljg0ODIgOS42MTY2MUwxNC4yNDQgMTYuNTIyOUMxMy45MTE3IDE3LjAyMTMgMTQuMjY5IDE3LjY4ODkgMTQuODY4MSAxNy42ODg5SDE4LjUzMzNWMjEuOTY3NFoiIGZpbGw9IndoaXRlIi8+CjxnIG9wYWNpdHk9IjAuMyI+CjxwYXRoIGQ9Ik04LjQgMTEuMzU1NUM4LjQgMTAuNjU2IDguOTY3MTEgMTAuMDg4OSA5LjY2NjY3IDEwLjA4ODlIMTMuODg4OUMxNC41ODg1IDEwLjA4ODkgMTUuMTU1NiAxMC42NTYgMTUuMTU1NiAxMS4zNTU1QzE1LjE1NTYgMTIuMDU1MSAxNC41ODg1IDEyLjYyMjIgMTMuODg4OSAxMi42MjIySDkuNjY2NjdDOC45NjcxMSAxMi42MjIyIDguNCAxMi4wNTUxIDguNCAxMS4zNTU1WiIgZmlsbD0id2hpdGUiLz4KPHBhdGggZD0iTTguNCAyMS40ODg5QzguNCAyMC43ODkzIDguOTY3MTEgMjAuMjIyMiA5LjY2NjY3IDIwLjIyMjJIMTMuODg4OUMxNC41ODg1IDIwLjIyMjIgMTUuMTU1NiAyMC43ODkzIDE1LjE1NTYgMjEuNDg4OUMxNS4xNTU2IDIyLjE4ODQgMTQuNTg4NSAyMi43NTU1IDEzLjg4ODkgMjIuNzU1NUg5LjY2NjY3QzguOTY3MTEgMjIuNzU1NSA4LjQgMjIuMTg4NCA4LjQgMjEuNDg4OVoiIGZpbGw9IndoaXRlIi8+CjxwYXRoIGQ9Ik03Ljk3Nzc4IDE1LjE1NTZDNC4yNzgyMiAxNS4xNTU2IDYuNzExMTEgMTUuNzIyNyA2LjcxMTExIDE2LjQyMjJDNi43MTExMSAxNy4xMjE4IDcuMjc4MjIgMTcuNjg4OSA3Ljk3Nzc4IDE3LjY4ODlIMTEuMzU1NkMxMi4wNTUxIDE3LjY4ODkgMTIuNjIyMiAxNy4xMjE4IDEyLjYyMjIgMTYuNDIyMkMxMi42MjIyIDE1LjcyMjcgMTIuMDU1MSAxNS4xNTU2IDExLjM1NTYgMTUuMTU1Nkg3Ljk3Nzc4WiIgZmlsbD0id2hpdGUiLz4KPC9nPgo8L3N2Zz4K'
+				/>
 			</head>
 			<body>
 				<script
@@ -27,7 +47,7 @@ export const PluginAuthPage: FC<PluginAuthPageProps> = ({ state }) => {
                 }
                 return btoa(arr.join(''));
               }
-              
+
               function encodeUrlBase64(input) {
                 let unencoded = input;
                 if (typeof unencoded === 'string') {
@@ -39,7 +59,7 @@ export const PluginAuthPage: FC<PluginAuthPageProps> = ({ state }) => {
                 }
                 return encodeBase64(unencoded).replace(/=/g, '').replace(/\\+/g, '-').replace(/\\//g, '_');
               }
-              
+
               function encodeState(payload) {
                 try {
                   const header = { alg: 'none' };
@@ -51,14 +71,20 @@ export const PluginAuthPage: FC<PluginAuthPageProps> = ({ state }) => {
                   throw new Error(\`Failed to encode state: \${error}\`);
                 }
               }
-              
+
+              // These values are injected as JS string literals (see toScriptLiteral)
+              // so untrusted query input cannot break out of this script.
+              const state = ${stateLiteral};
+              const callbackUrl = ${callbackLiteral};
+              const authUrl = ${authUrlLiteral};
+
               const payload = {
-                returnTo: "${env.CALLBACK_URL}/write?state=${state}",
+                returnTo: callbackUrl + "/write?state=" + encodeURIComponent(state),
               };
 
-              const redirectUrl = \`${env.MUSEDAM_AUTH_URL}?state=\${encodeState(payload)}\`;
+              const redirectUrl = authUrl + "?state=" + encodeState(payload);
               console.log('redirectUrl', redirectUrl);
-              
+
               window.location = redirectUrl;
             `,
 					}}
