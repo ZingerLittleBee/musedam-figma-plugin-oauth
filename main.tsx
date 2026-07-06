@@ -30,19 +30,65 @@ app.use(logger())
 
 logInfo('Hono 日志中间件已启用')
 
-// 存储状态和代码的映射
-const state2code = new Map()
-// 存储状态和解析器的映射
+// Time-to-live for a pending auth state. Must comfortably exceed the /read
+// long-poll timeout so a legitimate login is never evicted mid-flight.
+const STATE_TTL_MS = 10 * 60 * 1000
+// Hard cap on concurrent pending states, so an abusive client that spams
+// /plugin or /write with random states cannot grow memory without bound.
+const MAX_STATES = 10_000
+
+interface StateEntry {
+	code?: string
+	lng?: string
+	app?: string
+	createdAt: number
+}
+
+// Single bounded store for pending auth states, replacing the previously
+// unbounded state2code / state2lng / state2app maps. Resolvers live in their
+// own map because they are cleared eagerly on resolve/timeout.
+const states = new Map<string, StateEntry>()
 const state2resolver = new Map()
-// 存储状态和语言的映射
-const state2lng = new Map()
-// state -> app mapping (figma default / ps); mirrors state2lng
-const state2app = new Map()
+
+function getEntry(state: string): StateEntry | undefined {
+	const entry = states.get(state)
+	if (!entry) return undefined
+	if (Date.now() - entry.createdAt > STATE_TTL_MS) {
+		states.delete(state)
+		return undefined
+	}
+	return entry
+}
+
+function upsertEntry(state: string, patch: Partial<StateEntry>): StateEntry {
+	const existing = getEntry(state)
+	if (existing) {
+		Object.assign(existing, patch)
+		return existing
+	}
+	if (states.size >= MAX_STATES) {
+		// Evict the oldest entry (Map preserves insertion order).
+		const oldest = states.keys().next().value
+		if (oldest !== undefined) states.delete(oldest)
+	}
+	const entry: StateEntry = { createdAt: Date.now(), ...patch }
+	states.set(state, entry)
+	return entry
+}
+
+// Periodically drop expired states so idle keys do not accumulate.
+setInterval(() => {
+	const now = Date.now()
+	for (const [state, entry] of states) {
+		if (now - entry.createdAt > STATE_TTL_MS) states.delete(state)
+	}
+}, 60 * 1000)
 
 logInfo('OAuth 状态存储已初始化', {
-	state2code: 'Map for storing state-to-code mappings',
+	states: 'Bounded map for state -> { code, lng, app } with TTL',
 	state2resolver: 'Map for storing state-to-resolver mappings',
-	state2lng: 'Map for storing state-to-language mappings',
+	ttlMs: STATE_TTL_MS,
+	maxStates: MAX_STATES,
 })
 
 app.get('/', (c: Context) => {
@@ -68,12 +114,9 @@ app.get('/plugin', (c: Context) => {
 	} else {
 		logInfo('接收到 state 参数', { state })
 
-		// 存储 state 和 lng 的映射关系
-		if (lng) {
-			state2lng.set(state, lng)
-			logInfo('已存储 state 和 lng 的映射', { state, lng })
-		}
-		state2app.set(state, appParam)
+		// Record the pending state so /write can look up lng/app later.
+		upsertEntry(state, lng ? { lng, app: appParam } : { app: appParam })
+		logInfo('已存储 state 的 lng/app 映射', { state, lng, app: appParam })
 	}
 
 	logSuccess('插件授权页面已生成', {
@@ -91,15 +134,16 @@ app.get('/write', (c: Context) => {
 	const state = c.req.query('state')
 	const code = c.req.query('code')
 
-	// 根据 state 获取对应的 lng
-	const lng = state ? state2lng.get(state) : undefined
-	const appParam = state ? state2app.get(state) : undefined
+	// Only accept a code for a state that /plugin previously registered.
+	const entry = state ? getEntry(state) : undefined
+	const lng = entry?.lng
+	const appParam = entry?.app
 
 	logInfo('接收到授权参数', { state, code: code ? '***' : undefined, lng })
 
-	if (state && code) {
-		// 存储状态和代码的映射
-		state2code.set(state, code)
+	if (state && code && entry) {
+		// Store the code on the pending entry.
+		entry.code = code
 		logSuccess('授权码已存储', { state, codeLength: code.length })
 
 		// 如果有等待的解析器，解析它
@@ -113,9 +157,10 @@ app.get('/write', (c: Context) => {
 			logInfo('暂无等待的解析器', { state })
 		}
 	} else {
-		logWarning('授权码写入请求参数不完整', {
+		logWarning('授权码写入请求参数不完整或 state 未知', {
 			hasState: !!state,
 			hasCode: !!code,
+			knownState: !!entry,
 		})
 	}
 
@@ -141,9 +186,11 @@ app.get('/read', async (c: Context) => {
 
 	logInfo('尝试读取授权码', { state })
 
-	// 如果代码已经存在，直接返回
-	if (state2code.has(state)) {
-		const code = state2code.get(state)
+	// If the code already arrived, return it and drop the state (one-time use).
+	const entry = getEntry(state)
+	if (entry?.code) {
+		const code = entry.code
+		states.delete(state)
 		logSuccess('授权码已找到，立即返回', {
 			state,
 			codeLength: code.length,
@@ -176,6 +223,8 @@ app.get('/read', async (c: Context) => {
 			logInfo('解析器已注册，等待授权码到达', { state })
 		})
 
+		// One-time use: drop the state now that the code has been delivered.
+		states.delete(state)
 		logSuccess('授权码等待完成，返回结果', {
 			state,
 			codeLength: code.length,
